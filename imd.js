@@ -39,6 +39,46 @@
    *     pass the exported value directly.
    */
   function define(id, dependencies, factory) {
+    _defineFromQ(id, dependencies, factory);
+  }
+
+
+  // Semi-private. We expose this for tests & introspection.
+  define._modules = _modules;
+  // Semi-private. We expose this for tests & introspection.
+  define._timeout = 9000;
+
+  /**
+   * Let other implementations know that this is an AMD implementation.
+   * @see https://github.com/amdjs/amdjs-api/wiki/AMD#defineamd-property-
+   */
+  define.amd = {};
+  // To use a pre-load definition queue, write a definition something like this.
+  //
+  // (function(a,b,c,d){a[b]=a[b]||function(a,b,e){d.push([a,b,e,c._currentScript||c.currentScript])};a[b].q=d=a[b].q||[]})(window,"define",document);
+  // (function (s,a,c,q) {s[a]=s[a]||function(i,m,f) {q.push([i,m,f,c._currentScript || c.currentScript]);};q=s[a].q=s[a].q||q;})(window,"define",document);
+  //
+  if (scope.define && scope.define.q) {
+    scope.define.q.forEach(function (el) {
+      _defineFromQ.apply(null, el);
+    });
+  }
+
+
+  // Utility
+  /**
+   * Define from a direct call to `define` or from a preset queue.
+   * @param {string=} id The id of the module being defined. If not provided,
+   *     one will be given to the module based on the document it was called in.
+   * @param {Array<string>=} dependencies A list of module ids that should be
+   *     exposed as dependencies of the module being defined.
+   * @param {function(...*)|*} factory A function that is given the exported
+   *     values for `dependencies`, in the same order. Alternatively, you can
+   *     pass the exported value directly.
+   * @param {?ScriptElement} scriptTag If provided, use this tag to deduce the
+   *     name to use for anonymous modules.
+   */
+  function _defineFromQ(id, dependencies, factory, scriptTag) {
     if (_moduleTimer) {
       clearTimeout(_moduleTimer);
     }
@@ -47,7 +87,7 @@
       dependencies = id;
     }
     if (typeof id !== 'string') {
-      id = _inferModuleId();
+      id = _inferModuleId(scriptTag);
     }
     // TODO(nevir): Just support \ as path separators too. Yay Windows!
     if (id.indexOf('\\') !== -1) {
@@ -77,20 +117,6 @@
       }, define._timeout);
     }
   }
-
-  // Semi-private. We expose this for tests & introspection.
-  define._modules = _modules;
-  // Semi-private. We expose this for tests & introspection.
-  define._timeout = 9000;
-
-  /**
-   * Let other implementations know that this is an AMD implementation.
-   * @see https://github.com/amdjs/amdjs-api/wiki/AMD#defineamd-property-
-   */
-  define.amd = {};
-
-
-  // Utility
 
   /**
    * Calls `factory` with the exported values of `dependencies`, or defers
@@ -139,8 +165,8 @@
   }
 
   /** @return {string} A module id inferred from the current document/import. */
-  function _inferModuleId() {
-    var script = document._currentScript || document.currentScript;
+  function _inferModuleId(script) {
+    var script = script || document._currentScript || document.currentScript;
     if (script && script.hasAttribute('as')) {
       return script.getAttribute('as');
     }
